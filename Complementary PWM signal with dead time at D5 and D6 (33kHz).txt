@@ -1,0 +1,46 @@
+void setup() {
+  // put your setup code here, to run once:
+
+  // Feed GCLK0 at 48MHz to TCC0 and TCC1
+  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |         // Enable GCLK0 as a clock source (1 << 14)
+                      GCLK_CLKCTRL_GEN_GCLK0 |     // Select GCLK0 at 48MHz (0 << 8)
+                      GCLK_CLKCTRL_ID_TCC0_TCC1;   // Route GCLK0 to TCC0 and TCC1 (0x1A << 0)
+  while (GCLK->STATUS.bit.SYNCBUSY);               // Wait for synchronization
+
+  // Enable the port multiplexer for pins D6
+  PORT->Group[g_APinDescription[6].ulPort].PINCFG[g_APinDescription[6].ulPin].bit.PMUXEN = 1;
+
+  // D6 is on EVEN port pin PA04 and TCC0/WO[0] channel 0 is on peripheral E
+  PORT->Group[g_APinDescription[6].ulPort].PMUX[g_APinDescription[6].ulPin >> 1].reg |= PORT_PMUX_PMUXE_E;
+
+  // Enable the port multiplexer for pins D2
+  PORT->Group[g_APinDescription[2].ulPort].PINCFG[g_APinDescription[2].ulPin].bit.PMUXEN = 1;
+
+  // D2 is on EVEN port pin PB10 and TCC0/WO[4] channel 0 is on peripheral F
+  PORT->Group[g_APinDescription[2].ulPort].PMUX[g_APinDescription[2].ulPin >> 1].reg |= PORT_PMUX_PMUXE_F;
+
+  // Normal (single slope) PWM operation: timer countinuously counts up to PER register value and then is reset to 0
+  TCC0->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM;          // Setup single slope PWM on TCC0  (2 << 0)
+  while (TCC1->SYNCBUSY.bit.WAVE);                 // Wait for synchronization
+
+  REG_TCC0_CTRLA |= TCC_CTRLA_PRESCALER_DIV1 |      // Set prescaler to 1, 48MHz/1 (0 << 8)
+                    TCC_CTRLA_PRESCSYNC_PRESC;      // Set the reset/reload to trigger on prescaler clock (1 << 12)
+
+  REG_TCC0_PER = 1453;                            // Set the frequency of the PWM on TCC0 to 33kHz: 48MHz / (1 * 1453 + 1) = 33kHz
+  while (TCC0->SYNCBUSY.bit.PER);                  // Wait for synchronization
+
+  REG_TCC0_CC0 = 726;                           // TCC1 CC0 - 50% duty cycle
+  while (TCC0->SYNCBUSY.bit.CC0);                 // Wait for synchronization
+
+  // dead time generation (edit the value to adjust the dead time on Low side (bit: 16) and High side (bit:24))
+  REG_TCC0_WEXCTRL |= (50 << 16) | (50 << 24) | (1 << 8) | (2 << 0) ;  // (1 << 8): implement dead time at output WO[0] and WO[4]
+  // (2 << 0): output matrix (all output use CC0
+
+  TCC0->CTRLA.bit.ENABLE = 1;                     // Enable the TCC0 counter
+  while (TCC0->SYNCBUSY.bit.ENABLE);              // Wait for synchronization
+
+}
+
+void loop() {
+
+}
